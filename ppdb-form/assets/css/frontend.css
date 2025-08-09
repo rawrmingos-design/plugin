@@ -1,0 +1,65 @@
+/* PPDB Form Frontend */
+.ppdb-form {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 16px;
+  margin: 12px 0
+}
+
+.ppdb-form .ppdb-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px
+}
+
+.ppdb-form label {
+  display: flex;
+  flex-direction: column;
+  font-weight: 600;
+  color: #1f2937
+}
+
+.ppdb-form input[type=text],
+.ppdb-form input[type=email],
+.ppdb-form input[type=date],
+.ppdb-form input[type=tel],
+.ppdb-form input[type=number],
+.ppdb-form textarea,
+.ppdb-form select {
+  margin-top: 6px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 8px 10px
+}
+
+.ppdb-form .ppdb-btn {
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 16px;
+  cursor: pointer
+}
+
+.ppdb-form .ppdb-btn:hover {
+  background: #1d4ed8
+}
+
+.ppdb-alert {
+  padding: 10px 12px;
+  border-radius: 8px;
+  margin-bottom: 12px
+}
+
+.ppdb-alert.success {
+  background: #e8f5e9;
+  color: #1b5e20;
+  border: 1px solid #a5d6a7
+}
+
+.ppdb-alert.error {
+  background: #fdecea;
+  color: #b71c1c;
+  border: 1px solid #ef9a9a
+}

@@ -1,0 +1,181 @@
+/* PPDB Form Admin Styles */
+.ppdb-admin .ppdb-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+  margin: 16px 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .04)
+}
+
+.ppdb-admin .ppdb-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px
+}
+
+.ppdb-admin label {
+  display: flex;
+  flex-direction: column;
+  font-weight: 600;
+  color: #1f2937
+}
+
+.ppdb-admin input[type=text],
+.ppdb-admin input[type=date],
+.ppdb-admin input[type=email],
+.ppdb-admin textarea,
+.ppdb-admin select {
+  margin-top: 6px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: #fff;
+  color: #111827
+}
+
+.ppdb-admin .ppdb-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 18px
+}
+
+.ppdb-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 6px
+}
+
+.ppdb-table thead th {
+  font-weight: 700;
+  color: #374151;
+  text-align: left;
+  padding: 10px
+}
+
+.ppdb-table tbody tr {
+  background: #fafafa;
+  border: 1px solid #e5e7eb
+}
+
+.ppdb-table td {
+  padding: 10px;
+  vertical-align: top
+}
+
+.ppdb-table .center {
+  text-align: center
+}
+
+.ppdb-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 12px
+}
+
+.ppdb-badge.success {
+  background: #e8f5e9;
+  color: #1b5e20
+}
+
+.ppdb-badge.muted {
+  background: #f3f4f6;
+  color: #6b7280
+}
+
+.ppdb-actions {
+  display: flex;
+  gap: 8px
+}
+
+.ppdb-icon {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  color: #fff;
+  text-decoration: none
+}
+
+.ppdb-icon:before {
+  font-size: 16px;
+  line-height: 16px
+}
+
+.ppdb-icon.btn-yellow {
+  background: #f59e0b
+}
+
+.ppdb-icon.btn-blue {
+  background: #3b82f6
+}
+
+.ppdb-icon.btn-green {
+  background: #10b981
+}
+
+.ppdb-icon.btn-red {
+  background: #ef4444
+}
+
+.ppdb-search {
+  max-width: 260px;
+  margin-bottom: 10px;
+  padding: 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px
+}
+
+.ppdb-detail {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px
+}
+
+.ppdb-detail-item {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 8px
+}
+
+.ppdb-toolbar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap
+}
+
+.ppdb-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin: 12px 0
+}
+
+.ppdb-stat {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center
+}
+
+.ppdb-stat .num {
+  font-size: 28px;
+  font-weight: 800;
+  color: #111827
+}
+
+.ppdb-stat .label {
+  color: #6b7280;
+  font-weight: 600;
+  margin-top: 4px
+}
