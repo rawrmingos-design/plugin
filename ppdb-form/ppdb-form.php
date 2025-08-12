@@ -17,7 +17,8 @@ if (!defined('ABSPATH')) {
 
 final class PPDB_Form_Plugin
 {
-  const VERSION = '1.0';
+  const VERSION = '1.1';
+  const DB_VERSION = '1.2.0';
 
   /** @var PPDB_Form_Plugin|null */
   private static $instance = null;
@@ -39,18 +40,31 @@ final class PPDB_Form_Plugin
     $this->includes();
 
     register_activation_hook(__FILE__, ['PPDB_Form_Installer', 'activate']);
+    add_action('plugins_loaded', ['PPDB_Form_Installer', 'maybe_upgrade']);
 
     add_action('admin_menu', ['PPDB_Form_Admin', 'register_menu']);
+    add_action('admin_menu', ['PPDB_Form_Debug', 'register_menu']);
+    add_action('admin_init', ['PPDB_Form_Settings', 'register_settings']);
     add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_assets']);
     add_action('wp_enqueue_scripts', [$this, 'enqueue_front_assets']);
 
     add_shortcode('simpel_pendaftaran', ['PPDB_Form_Frontend', 'render_shortcode']);
     add_action('init', ['PPDB_Form_Frontend', 'handle_submission']);
+    add_action('ppdb_send_notifications', ['PPDB_Form_Notifications', 'process_queued_notifications'], 10, 2);
+
+    // Optional: reCAPTCHA site key configured via option, enqueue only on form pages if present
+    add_action('wp_enqueue_scripts', static function () {
+      $site_key = (string) get_option('ppdb_recaptcha_site_key', '');
+      if ($site_key !== '' && has_shortcode(get_post_field('post_content', get_the_ID() ?: 0), 'simpel_pendaftaran')) {
+        wp_enqueue_script('recaptcha', 'https://www.google.com/recaptcha/api.js', [], null, true);
+      }
+    });
   }
 
   private function define_constants(): void
   {
     define('PPDB_FORM_VERSION', self::VERSION);
+    define('PPDB_FORM_DB_VERSION', self::DB_VERSION);
     define('PPDB_FORM_FILE', __FILE__);
     define('PPDB_FORM_DIR', plugin_dir_path(__FILE__));
     define('PPDB_FORM_URL', plugin_dir_url(__FILE__));
@@ -62,6 +76,10 @@ final class PPDB_Form_Plugin
     require_once PPDB_FORM_DIR . 'includes/class-ppdb-form-installer.php';
     require_once PPDB_FORM_DIR . 'includes/class-ppdb-form-admin.php';
     require_once PPDB_FORM_DIR . 'includes/class-ppdb-form-frontend.php';
+    require_once PPDB_FORM_DIR . 'includes/class-ppdb-form-settings.php';
+    require_once PPDB_FORM_DIR . 'includes/class-ppdb-form-notifications.php';
+    require_once PPDB_FORM_DIR . 'includes/class-ppdb-form-submissions-list-table.php';
+    require_once PPDB_FORM_DIR . 'includes/class-ppdb-form-debug.php';
   }
 
   public function enqueue_admin_assets(string $hook_suffix): void
@@ -75,8 +93,31 @@ final class PPDB_Form_Plugin
 
   public function enqueue_front_assets(): void
   {
+    // Only enqueue on pages with the shortcode
+    global $post;
+    if (!is_a($post, 'WP_Post') || !has_shortcode($post->post_content, 'simpel_pendaftaran')) {
+      return;
+    }
+
     wp_enqueue_style('ppdb-form-frontend', PPDB_FORM_ASSETS . 'css/frontend.css', [], self::VERSION);
     wp_enqueue_script('ppdb-form-frontend', PPDB_FORM_ASSETS . 'js/frontend.js', ['jquery'], self::VERSION, true);
+
+    // Localize script for translations
+    wp_localize_script('ppdb-form-frontend', 'ppdbForm', [
+      'ajaxUrl' => admin_url('admin-ajax.php'),
+      'nonce' => wp_create_nonce('ppdb_form_ajax'),
+      'btnColors' => [
+        'start' => get_option('ppdb_btn_color_start', '#3b82f6'),
+        'end' => get_option('ppdb_btn_color_end', '#2563eb'),
+      ],
+      'messages' => [
+        'saving' => __('Menyimpan...', 'ppdb-form'),
+        'saved' => __('Data tersimpan', 'ppdb-form'),
+        'error' => __('Terjadi kesalahan', 'ppdb-form'),
+        'required' => __('Field ini wajib diisi', 'ppdb-form'),
+        'invalid' => __('Format tidak valid', 'ppdb-form'),
+      ]
+    ]);
   }
 
   /**
@@ -136,6 +177,27 @@ final class PPDB_Form_Plugin
       // Pilihan
       'jurusan' => ['label' => __('Jurusan Pilihan 1', 'ppdb-form'), 'type' => 'select', 'category' => 'Pilihan'],
       'jurusan_pilihan_2' => ['label' => __('Jurusan Pilihan 2', 'ppdb-form'), 'type' => 'select', 'category' => 'Pilihan'],
+      // Dokumen (Upload)
+      'dok_kk' => ['label' => __('Kartu Keluarga (KK)', 'ppdb-form'), 'type' => 'file', 'category' => 'Dokumen'],
+      'dok_akta' => ['label' => __('Akta Kelahiran', 'ppdb-form'), 'type' => 'file', 'category' => 'Dokumen'],
+      'dok_skl_ijazah' => ['label' => __('Surat Keterangan Lulus (SKL) / Ijazah', 'ppdb-form'), 'type' => 'file', 'category' => 'Dokumen'],
+      'dok_pas_foto' => ['label' => __('Pas Foto', 'ppdb-form'), 'type' => 'file', 'category' => 'Dokumen'],
+      'dok_ktp_wali' => ['label' => __('KTP Orang Tua/Wali', 'ppdb-form'), 'type' => 'file', 'category' => 'Dokumen'],
+      'dok_kip_kks_pkh' => ['label' => __('KIP/KKS/PKH (jika ada)', 'ppdb-form'), 'type' => 'file', 'category' => 'Dokumen'],
+      'dok_piagam' => ['label' => __('Piagam/Sertifikat/Prestasi (opsional)', 'ppdb-form'), 'type' => 'file', 'category' => 'Dokumen'],
+      'dok_rapor' => ['label' => __('Rapor Semester Sebelumnya', 'ppdb-form'), 'type' => 'file', 'category' => 'Dokumen'],
+      'dok_rapor_1' => ['label' => __('Rapor Semester 1', 'ppdb-form'), 'type' => 'file', 'category' => 'Dokumen'],
+      'dok_rapor_2' => ['label' => __('Rapor Semester 2', 'ppdb-form'), 'type' => 'file', 'category' => 'Dokumen'],
+      'dok_rapor_3' => ['label' => __('Rapor Semester 3', 'ppdb-form'), 'type' => 'file', 'category' => 'Dokumen'],
+      'dok_rapor_4' => ['label' => __('Rapor Semester 4', 'ppdb-form'), 'type' => 'file', 'category' => 'Dokumen'],
+      'dok_rapor_5' => ['label' => __('Rapor Semester 5', 'ppdb-form'), 'type' => 'file', 'category' => 'Dokumen'],
+      'dok_rapor_6' => ['label' => __('Rapor Semester 6', 'ppdb-form'), 'type' => 'file', 'category' => 'Dokumen'],
+      // Opsi gabungan untuk memudahkan verifikasi
+      'dok_rapor_1_3' => ['label' => __('Rapor Semester 1–3 (gabung PDF/ZIP)', 'ppdb-form'), 'type' => 'file', 'category' => 'Dokumen'],
+      'dok_rapor_4_6' => ['label' => __('Rapor Semester 4–6 (gabung PDF/ZIP)', 'ppdb-form'), 'type' => 'file', 'category' => 'Dokumen'],
+      'dok_rapor_1_6' => ['label' => __('Rapor Semester 1–6 (gabung PDF/ZIP)', 'ppdb-form'), 'type' => 'file', 'category' => 'Dokumen'],
+      'dok_penugasan' => ['label' => __('Surat Penugasan Resmi (jika pindahan)', 'ppdb-form'), 'type' => 'file', 'category' => 'Dokumen'],
+      'dok_pindah_domisili' => ['label' => __('Surat Keterangan Pindah Domisili', 'ppdb-form'), 'type' => 'file', 'category' => 'Dokumen'],
     ];
   }
 }
