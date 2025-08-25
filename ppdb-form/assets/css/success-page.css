@@ -1,0 +1,375 @@
+/* Modern Success Page Styles */
+.ppdb-success-container {
+  max-width: 800px;
+  margin: 0 auto;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  padding: 0 16px;
+}
+
+.ppdb-success-header {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  border-radius: 16px;
+  padding: 40px 30px;
+  text-align: center;
+  margin-bottom: 24px;
+  box-shadow: 0 20px 40px rgba(16, 185, 129, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.ppdb-success-header::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+  animation: ppdb-shimmer 3s ease-in-out infinite;
+}
+
+@keyframes ppdb-shimmer {
+
+  0%,
+  100% {
+    transform: translateX(-50%) translateY(-50%) rotate(0deg);
+  }
+
+  50% {
+    transform: translateX(-50%) translateY(-50%) rotate(180deg);
+  }
+}
+
+.ppdb-success-icon {
+  margin-bottom: 20px;
+  position: relative;
+  z-index: 2;
+}
+
+.ppdb-checkmark svg {
+  display: block;
+  margin: 0 auto;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2));
+}
+
+.ppdb-circle-animation {
+  animation: ppdb-circle-fill 1.5s ease-in-out forwards;
+}
+
+.ppdb-check-animation {
+  animation: ppdb-check-draw 1s ease-in-out 0.5s forwards;
+}
+
+@keyframes ppdb-circle-fill {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes ppdb-check-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.ppdb-success-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin: 0 0 16px 0;
+  position: relative;
+  z-index: 2;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.ppdb-success-message {
+  font-size: 1.1rem;
+  margin-bottom: 20px;
+  position: relative;
+  z-index: 2;
+  opacity: 0.95;
+}
+
+.ppdb-reg-number {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  padding: 16px 24px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  position: relative;
+  z-index: 2;
+}
+
+.ppdb-reg-label {
+  font-size: 0.9rem;
+  opacity: 0.9;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.ppdb-reg-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 2px;
+}
+
+.ppdb-success-card {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  margin-bottom: 24px;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.ppdb-success-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.12);
+}
+
+.ppdb-card-header {
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  padding: 20px 24px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.ppdb-card-header h3 {
+  margin: 0 0 8px 0;
+  font-size: 1.3rem;
+  color: #1e293b;
+  font-weight: 600;
+}
+
+.ppdb-card-header p {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.95rem;
+}
+
+.ppdb-card-content {
+  padding: 24px;
+}
+
+.ppdb-summary-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.ppdb-summary-item:last-child {
+  border-bottom: none;
+}
+
+.ppdb-summary-label {
+  font-weight: 500;
+  color: #475569;
+}
+
+.ppdb-summary-value {
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.ppdb-action-buttons {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.ppdb-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 24px;
+  border-radius: 12px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.95rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border: none;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.ppdb-action-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s;
+}
+
+.ppdb-action-btn:hover::before {
+  left: 100%;
+}
+
+.ppdb-btn-view {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  color: white;
+}
+
+.ppdb-btn-print {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: white;
+}
+
+.ppdb-btn-pdf {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  color: white;
+}
+
+.ppdb-action-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.ppdb-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: #64748b;
+  background: #f8fafc;
+  margin: 0 24px 24px;
+  padding: 16px;
+  border-radius: 8px;
+  border-left: 4px solid #fbbf24;
+}
+
+.ppdb-steps-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.ppdb-step-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.ppdb-step-item:last-child {
+  margin-bottom: 0;
+}
+
+.ppdb-step-number {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.ppdb-step-text strong {
+  color: #1e293b;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.ppdb-step-text small {
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.ppdb-contact-info {
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 16px;
+  border-left: 4px solid #10b981;
+  text-align: center;
+}
+
+.ppdb-contact-item {
+  color: #1e293b;
+  font-size: 0.95rem;
+}
+
+.ppdb-icon {
+  font-size: 1.2rem;
+  margin-right: 8px;
+}
+
+/* Animation classes */
+.ppdb-fade-in {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: all 0.6s ease;
+}
+
+.ppdb-fade-in.active {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.ppdb-card-fade-in {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: all 0.5s ease;
+}
+
+.ppdb-card-fade-in.active {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .ppdb-success-header {
+    padding: 30px 20px;
+  }
+
+  .ppdb-success-title {
+    font-size: 2rem;
+  }
+
+  .ppdb-action-buttons {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ppdb-summary-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .ppdb-reg-value {
+    font-size: 1.2rem;
+    letter-spacing: 1px;
+  }
+}
+
+@media (max-width: 480px) {
+  .ppdb-success-container {
+    padding: 0 12px;
+  }
+
+  .ppdb-card-content {
+    padding: 16px;
+  }
+
+  .ppdb-card-header {
+    padding: 16px;
+  }
+
+  .ppdb-success-title {
+    font-size: 1.8rem;
+  }
+}

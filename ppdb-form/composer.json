@@ -1,0 +1,44 @@
+{
+  "name": "ppdb-form/wordpress-plugin",
+  "description": "WordPress plugin for PPDB (Penerimaan Peserta Didik Baru) form management",
+  "type": "wordpress-plugin",
+  "license": "GPL-2.0-or-later",
+  "authors": [
+    {
+      "name": "PPDB Form Team",
+      "email": "admin@example.com"
+    }
+  ],
+  "require": {
+    "php": ">=7.4"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^9.0",
+    "wp-coding-standards/wpcs": "^2.3",
+    "dealerdirect/phpcodesniffer-composer-installer": "^0.7"
+  },
+  "scripts": {
+    "test": "phpunit",
+    "test:coverage": "phpunit --coverage-text",
+    "cs:check": "phpcs --standard=WordPress .",
+    "cs:fix": "phpcbf --standard=WordPress .",
+    "install-tests": [
+      "bash bin/install-wp-tests.sh wordpress_test wp_test wp_test localhost latest"
+    ]
+  },
+  "config": {
+    "allow-plugins": {
+      "dealerdirect/phpcodesniffer-composer-installer": true
+    }
+  },
+  "autoload": {
+    "classmap": [
+      "includes/"
+    ]
+  },
+  "autoload-dev": {
+    "classmap": [
+      "tests/"
+    ]
+  }
+}

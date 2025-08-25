@@ -6,7 +6,7 @@ if (!defined('ABSPATH')) {
 
 class PPDB_Form_Installer
 {
-  private const DB_VERSION = '1.2.0';
+  private const DB_VERSION = '1.3.0';
 
   public static function activate(): void
   {
@@ -18,6 +18,7 @@ class PPDB_Form_Installer
     $table_forms = $wpdb->prefix . 'ppdb_forms';
     $table_submissions = $wpdb->prefix . 'ppdb_submissions';
     $table_departments = $wpdb->prefix . 'ppdb_departments';
+    $table_pdf_templates = $wpdb->prefix . 'ppdb_pdf_templates';
 
     $sql_forms = "CREATE TABLE {$table_forms} (
             id mediumint(9) NOT NULL AUTO_INCREMENT,
@@ -49,9 +50,26 @@ class PPDB_Form_Installer
             PRIMARY KEY (id)
         ) {$charset_collate};";
 
+    $sql_pdf_templates = "CREATE TABLE {$table_pdf_templates} (
+            id mediumint(9) NOT NULL AUTO_INCREMENT,
+            name varchar(255) NOT NULL,
+            preset_type varchar(50) DEFAULT 'default',
+            config_data longtext NULL,
+            is_active tinyint(1) DEFAULT 0,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY idx_active (is_active),
+            KEY idx_preset_type (preset_type)
+        ) {$charset_collate};";
+
     dbDelta($sql_forms);
     dbDelta($sql_submissions);
     dbDelta($sql_departments);
+    dbDelta($sql_pdf_templates);
+
+    // Seed default departments
+    self::seed_default_departments();
 
     // Save DB version for future upgrades
     if (!get_option('ppdb_form_db_version')) {
@@ -75,6 +93,7 @@ class PPDB_Form_Installer
     $table_forms = $wpdb->prefix . 'ppdb_forms';
     $table_submissions = $wpdb->prefix . 'ppdb_submissions';
     $table_departments = $wpdb->prefix . 'ppdb_departments';
+    $table_pdf_templates = $wpdb->prefix . 'ppdb_pdf_templates';
 
     // Helper to check index existence
     $has_index = static function (string $table, string $indexName) use ($wpdb): bool {
@@ -106,6 +125,189 @@ class PPDB_Form_Installer
       $wpdb->query('ALTER TABLE ' . $table_departments . ' ADD INDEX idx_active_name (is_active, name)');
     }
 
+    // Upgrade to 1.3.0: Add PDF templates table
+    if (version_compare($installed, '1.3.0', '<')) {
+      $charset_collate = $wpdb->get_charset_collate();
+
+      $sql_pdf_templates = "CREATE TABLE {$table_pdf_templates} (
+              id mediumint(9) NOT NULL AUTO_INCREMENT,
+              name varchar(255) NOT NULL,
+              preset_type varchar(50) DEFAULT 'default',
+              config_data longtext NULL,
+              is_active tinyint(1) DEFAULT 0,
+              created_at datetime DEFAULT CURRENT_TIMESTAMP,
+              updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+              PRIMARY KEY (id),
+              KEY idx_active (is_active),
+              KEY idx_preset_type (preset_type)
+          ) {$charset_collate};";
+
+      require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+      dbDelta($sql_pdf_templates);
+
+      // Seed default PDF templates
+      self::seed_default_pdf_templates();
+    }
+
+    // Ensure departments are seeded for existing installations
+    if (version_compare($installed, '1.0.0', '>=')) {
+      self::seed_default_departments();
+    }
+
     update_option('ppdb_form_db_version', self::DB_VERSION);
+  }
+
+  /**
+   * Seed default departments
+   */
+  private static function seed_default_departments(): void
+  {
+    global $wpdb;
+    $table_departments = $wpdb->prefix . 'ppdb_departments';
+
+    // Check if departments already exist
+    $count = $wpdb->get_var("SELECT COUNT(*) FROM {$table_departments}");
+    if ($count > 0) {
+      return; // Already seeded
+    }
+
+    $default_departments = [
+      'Rekayasa Perangkat Lunak (RPL)',
+      'Teknik Komputer dan Jaringan (TKJ)', 
+      'Desain Komunikasi Visual (DKV)',
+      'Multimedia (MM)',
+      'Akuntansi dan Keuangan Lembaga (AKL)',
+      'Otomatisasi dan Tata Kelola Perkantoran (OTKP)',
+      'Bisnis Daring dan Pemasaran (BDP)',
+      'Teknik Kendaraan Ringan Otomotif (TKRO)',
+      'Teknik dan Bisnis Sepeda Motor (TBSM)',
+      'Teknik Elektronika Industri (TEI)'
+    ];
+
+    foreach ($default_departments as $dept_name) {
+      $wpdb->insert(
+        $table_departments,
+        [
+          'name' => $dept_name,
+          'is_active' => 1,
+          'created_at' => current_time('mysql')
+        ],
+        ['%s', '%d', '%s']
+      );
+    }
+
+    // Clear cache after seeding
+    delete_transient('ppdb_departments_active');
+  }
+
+  /**
+   * Seed default PDF templates
+   */
+  private static function seed_default_pdf_templates(): void
+  {
+    global $wpdb;
+    $table_pdf_templates = $wpdb->prefix . 'ppdb_pdf_templates';
+
+    $default_templates = [
+      [
+        'name' => 'Default Template',
+        'preset_type' => 'default',
+        'config_data' => wp_json_encode([
+          'colors' => [
+            'primary' => '#3b82f6',
+            'secondary' => '#64748b',
+            'text' => '#1f2937'
+          ],
+          'layout' => 'standard',
+          'header_style' => 'logo_center',
+          'qr_position' => 'bottom_right',
+          'fields' => ['nama_lengkap', 'email', 'nomor_telepon', 'jurusan'],
+          'institution' => [
+            'name' => get_bloginfo('name'),
+            'logo' => '',
+            'address' => '',
+            'contact' => get_option('admin_email')
+          ]
+        ]),
+        'is_active' => 1
+      ],
+      [
+        'name' => 'Modern Template',
+        'preset_type' => 'modern',
+        'config_data' => wp_json_encode([
+          'colors' => [
+            'primary' => '#10b981',
+            'secondary' => '#374151',
+            'text' => '#111827'
+          ],
+          'layout' => 'minimal',
+          'header_style' => 'logo_left',
+          'qr_position' => 'top_right',
+          'fields' => ['nama_lengkap', 'email', 'jurusan'],
+          'institution' => [
+            'name' => get_bloginfo('name'),
+            'logo' => '',
+            'address' => '',
+            'contact' => get_option('admin_email')
+          ]
+        ]),
+        'is_active' => 0
+      ],
+      [
+        'name' => 'Classic Template',
+        'preset_type' => 'classic',
+        'config_data' => wp_json_encode([
+          'colors' => [
+            'primary' => '#dc2626',
+            'secondary' => '#1f2937',
+            'text' => '#000000'
+          ],
+          'layout' => 'formal',
+          'header_style' => 'full_header',
+          'qr_position' => 'bottom_center',
+          'fields' => ['nama_lengkap', 'email', 'nomor_telepon', 'jurusan', 'alamat'],
+          'institution' => [
+            'name' => get_bloginfo('name'),
+            'logo' => '',
+            'address' => '',
+            'contact' => get_option('admin_email')
+          ]
+        ]),
+        'is_active' => 0
+      ],
+      [
+        'name' => 'Academic Template',
+        'preset_type' => 'academic',
+        'config_data' => wp_json_encode([
+          'colors' => [
+            'primary' => '#7c3aed',
+            'secondary' => '#4b5563',
+            'text' => '#1f2937'
+          ],
+          'layout' => 'academic',
+          'header_style' => 'logo_center_seal',
+          'qr_position' => 'bottom_left',
+          'fields' => ['nama_lengkap', 'email', 'nomor_telepon', 'jurusan', 'tanggal_lahir'],
+          'institution' => [
+            'name' => get_bloginfo('name'),
+            'logo' => '',
+            'address' => '',
+            'contact' => get_option('admin_email')
+          ]
+        ]),
+        'is_active' => 0
+      ]
+    ];
+
+    foreach ($default_templates as $template) {
+      $existing = $wpdb->get_var($wpdb->prepare(
+        "SELECT id FROM {$table_pdf_templates} WHERE preset_type = %s",
+        $template['preset_type']
+      ));
+
+      if (!$existing) {
+        $wpdb->insert($table_pdf_templates, $template);
+      }
+    }
   }
 }

@@ -27,7 +27,7 @@ class PPDB_Form_Submissions_List_Table extends WP_List_Table
   {
     return [
       'cb' => '<input type="checkbox" />',
-      'id' => __('ID', 'ppdb-form'),
+      'nomor' => __('Nomor', 'ppdb-form'),
       'form_name' => __('Form', 'ppdb-form'),
       'nama_lengkap' => __('Nama', 'ppdb-form'),
       'nomor_telepon' => __('Telepon', 'ppdb-form'),
@@ -41,7 +41,7 @@ class PPDB_Form_Submissions_List_Table extends WP_List_Table
   public function get_sortable_columns(): array
   {
     return [
-      'id' => ['id', true],
+      'nomor' => ['id', true],
       'created_at' => ['created_at', false],
       'nama_lengkap' => ['nama_lengkap', false],
     ];
@@ -52,6 +52,8 @@ class PPDB_Form_Submissions_List_Table extends WP_List_Table
     return [
       'delete' => __('Hapus', 'ppdb-form'),
       'export_selected' => __('Export Terpilih', 'ppdb-form'),
+      'send_certificates' => __('📧 Kirim Bukti via Email', 'ppdb-form'),
+      'download_certificates' => __('📄 Download Bukti (ZIP)', 'ppdb-form'),
     ];
   }
 
@@ -69,10 +71,10 @@ class PPDB_Form_Submissions_List_Table extends WP_List_Table
     $offset = ($current_page - 1) * $per_page;
 
     $search = isset($_REQUEST['s']) ? sanitize_text_field((string) $_REQUEST['s']) : '';
-    $orderby = isset($_REQUEST['orderby']) ? sanitize_text_field((string) $_REQUEST['orderby']) : 'id';
+    $orderby = isset($_REQUEST['orderby']) ? sanitize_text_field((string) $_REQUEST['orderby']) : 'created_at';
     $order = isset($_REQUEST['order']) && in_array(strtoupper((string) $_REQUEST['order']), ['ASC', 'DESC'], true)
       ? strtoupper((string) $_REQUEST['order'])
-      : 'DESC';
+      : 'ASC';
 
     $submissions_table = $wpdb->prefix . 'ppdb_submissions';
     $forms_table = $wpdb->prefix . 'ppdb_forms';
@@ -153,9 +155,29 @@ class PPDB_Form_Submissions_List_Table extends WP_List_Table
     return sprintf('<input type="checkbox" name="submission[]" value="%d" />', (int) $item->id);
   }
 
-  public function column_id($item): string
+  public function column_nomor($item): string
   {
-    return (string) $item->id;
+    // Calculate sequential number based on creation order
+    global $wpdb;
+    $submissions_table = $wpdb->prefix . 'ppdb_submissions';
+    
+    $where_clause = '';
+    $args = [];
+    
+    if ($this->form_id > 0) {
+      $where_clause = 'WHERE form_id = %d AND created_at <= %s';
+      $args = [$this->form_id, $item->created_at];
+    } else {
+      $where_clause = 'WHERE created_at <= %s';
+      $args = [$item->created_at];
+    }
+    
+    $sequential_number = (int) $wpdb->get_var($wpdb->prepare(
+      "SELECT COUNT(*) FROM {$submissions_table} {$where_clause}",
+      $args
+    ));
+    
+    return (string) $sequential_number;
   }
 
   public function column_form_name($item): string

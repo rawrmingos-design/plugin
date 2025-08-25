@@ -6,6 +6,12 @@ if (!defined('ABSPATH')) {
 
 class PPDB_Form_Frontend
 {
+  /**
+   * Holds inline success HTML for current request to suppress re-rendering the form.
+   * @var array{form_id:int, html:string}|null
+   */
+  private static $inline_success = null;
+
   private static function get_forms_table(): string
   {
     global $wpdb;
@@ -24,18 +30,11 @@ class PPDB_Form_Frontend
     return $wpdb->prefix . 'ppdb_departments';
   }
 
-  private static function get_departments_cached(): array
+  private static function get_departments_direct(): array
   {
-    $cache_key = 'ppdb_departments_active';
-    $cached = get_transient($cache_key);
-    if (is_array($cached)) {
-      return $cached;
-    }
     global $wpdb;
     $rows = $wpdb->get_results('SELECT name FROM ' . self::get_departments_table() . ' WHERE is_active = 1 ORDER BY name ASC');
-    $opts = array_map(static fn($r) => (string) $r->name, $rows ?: []);
-    set_transient($cache_key, $opts, HOUR_IN_SECONDS);
-    return $opts;
+    return array_map(static fn($r) => (string) $r->name, $rows ?: []);
   }
 
   public static function render_shortcode(array $atts, ?string $content = null, string $tag = ''): string
@@ -51,17 +50,34 @@ class PPDB_Form_Frontend
       return '<div class="ppdb-form">' . esc_html__('Form tidak aktif atau tidak ditemukan.', 'ppdb-form') . '</div>';
     }
 
-    $success_message = '';
-    if (isset($_GET['ppdb_success']) && (int) $_GET['ppdb_success'] === $form_id) {
-      $success_message = $form->success_message ?: __('Terima kasih, pendaftaran Anda berhasil.', 'ppdb-form');
+    // If inline success exists for this form (same request), show it and hide the form
+    if (is_array(self::$inline_success) && (int) (self::$inline_success['form_id'] ?? 0) === $form_id) {
+      return (string) self::$inline_success['html'];
+    }
+
+    // Success block via PRG with secure hash (after redirect)
+    $success_block = '';
+    $behavior = (string) get_option('ppdb_submit_behavior', 'redirect');
+    if (isset($_GET['ppdb_thanks'], $_GET['sid'], $_GET['k'])) {
+      $sid = (int) $_GET['sid'];
+      $k = (string) $_GET['k'];
+      $expected = wp_hash($sid . '|' . wp_salt('auth'));
+      if (hash_equals($expected, $k)) {
+        global $wpdb;
+        $submission = $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . self::get_submissions_table() . ' WHERE id = %d AND form_id = %d', $sid, $form_id));
+        if ($submission) {
+          $data = json_decode((string) $submission->submission_data, true) ?: [];
+          $success_block = self::render_success_block($form, (int) $submission->id, $data);
+        }
+      }
     }
 
     // Check if multi-step is enabled
     $steps_config = $form->steps_config ? json_decode($form->steps_config, true) : null;
     $is_multistep = !empty($steps_config['enabled']);
 
-    if ($success_message !== '') {
-      return '<div class="ppdb-form"><div class="ppdb-alert success">' . esc_html($success_message) . '</div></div>';
+    if ($success_block !== '') {
+      return $success_block;
     }
 
     if ($is_multistep) {
@@ -69,6 +85,162 @@ class PPDB_Form_Frontend
     } else {
       return self::render_single_step_form($form);
     }
+  }
+
+  private static function render_success_block($form, int $submission_id, array $data): string
+  {
+    // Debug: Log success page rendering
+    if (defined('WP_DEBUG') && WP_DEBUG) {
+      error_log("PPDB Success Page: Rendering for submission ID {$submission_id}");
+    }
+
+    $template = (string) get_option('ppdb_success_template', __('<strong>Terima kasih {nama_lengkap}!</strong> Pendaftaran Anda berhasil dikirim. Nomor pendaftaran: {submission_id}.', 'ppdb-form'));
+    // Replace placeholders
+    $replacements = ['{submission_id}' => (string) $submission_id];
+    foreach ($data as $k => $v) {
+      if (is_string($v)) {
+        $replacements['{' . $k . '}'] = $v;
+      }
+    }
+    $html_msg = strtr($template, $replacements);
+
+    // Generate registration number
+    $prefix = get_option('ppdb_reg_number_prefix', 'REG');
+    $year = date('Y');
+    $padded_id = str_pad((string) $submission_id, 6, '0', STR_PAD_LEFT);
+    $reg_number = $prefix . $year . $padded_id;
+
+    $show_summary = (bool) get_option('ppdb_success_show_summary', true);
+    ob_start();
+    echo '<div class="ppdb-form ppdb-success-container">';
+
+    // Modern Success Header with Animation
+    echo '<div class="ppdb-success-header">';
+    echo '<div class="ppdb-success-icon">';
+    echo '<div class="ppdb-checkmark">';
+    echo '<svg width="60" height="60" viewBox="0 0 60 60">';
+    echo '<circle cx="30" cy="30" r="28" fill="none" stroke="#10b981" stroke-width="4" stroke-dasharray="175" stroke-dashoffset="175" class="ppdb-circle-animation"/>';
+    echo '<polyline points="15,30 25,40 45,20" fill="none" stroke="#10b981" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="40" stroke-dashoffset="40" class="ppdb-check-animation"/>';
+    echo '</svg>';
+    echo '</div>';
+    echo '</div>';
+    echo '<div class="ppdb-success-content">';
+    echo '<h2 class="ppdb-success-title">🎉 Pendaftaran Berhasil!</h2>';
+    echo '<div class="ppdb-success-message">' . wp_kses_post($html_msg) . '</div>';
+    echo '<div class="ppdb-reg-number">';
+    echo '<span class="ppdb-reg-label">Nomor Registrasi:</span>';
+    echo '<span class="ppdb-reg-value">' . esc_html($reg_number) . '</span>';
+    echo '</div>';
+    echo '</div>';
+    echo '</div>';
+
+    if ($show_summary) {
+      $registry = PPDB_Form_Plugin::get_field_registry();
+      echo '<div class="ppdb-success-card">';
+      echo '<div class="ppdb-card-header">';
+      echo '<h3><span class="ppdb-icon">📋</span> Ringkasan Pendaftaran</h3>';
+      echo '</div>';
+      echo '<div class="ppdb-card-content">';
+
+      $key_fields = ['nama_lengkap', 'email', 'nomor_telepon', 'jurusan'];
+      foreach ($key_fields as $key) {
+        if (isset($data[$key])) {
+          $label = $registry[$key]['label'] ?? ucfirst(str_replace('_', ' ', $key));
+          $value = is_array($data[$key]) ? implode(', ', array_map('sanitize_text_field', $data[$key])) : (string) $data[$key];
+          echo '<div class="ppdb-summary-item">';
+          echo '<span class="ppdb-summary-label">' . esc_html($label) . ':</span>';
+          echo '<span class="ppdb-summary-value">' . esc_html($value) . '</span>';
+          echo '</div>';
+        }
+      }
+      echo '</div>';
+      echo '</div>';
+    }
+
+    // Add certificate/registration proof section
+    if (class_exists('PPDB_Form_Certificate')) {
+      $certificate_url = PPDB_Form_Certificate::get_certificate_url($submission_id);
+      echo '<div class="ppdb-success-card">';
+      echo '<div class="ppdb-card-header">';
+      echo '<h3><span class="ppdb-icon">🎓</span> Bukti Pendaftaran</h3>';
+      echo '<p>' . esc_html__('Silakan unduh atau cetak bukti pendaftaran Anda untuk arsip resmi.', 'ppdb-form') . '</p>';
+      echo '</div>';
+      echo '<div class="ppdb-card-content">';
+      echo '<div class="ppdb-action-buttons">';
+      echo '<a href="' . esc_url($certificate_url) . '" target="_blank" class="ppdb-action-btn ppdb-btn-view">';
+      echo '<span class="ppdb-btn-icon">👁️</span>';
+      echo '<span class="ppdb-btn-text">' . esc_html__('Lihat Bukti', 'ppdb-form') . '</span>';
+      echo '</a>';
+      echo '<a href="' . esc_url($certificate_url) . '" target="_blank" class="ppdb-action-btn ppdb-btn-print" onclick="setTimeout(() => window.print(), 500);">';
+      echo '<span class="ppdb-btn-icon">🖨️</span>';
+      echo '<span class="ppdb-btn-text">' . esc_html__('Cetak', 'ppdb-form') . '</span>';
+      echo '</a>';
+
+      // Add PDF download button if PDF generator is available
+      if (class_exists('PPDB_Form_PDF_Generator')) {
+        $pdf_url = add_query_arg(['ppdb_pdf' => 1, 'sid' => $submission_id, 'hash' => wp_hash($submission_id . '|' . wp_salt('auth'))], home_url('/'));
+        echo '<a href="' . esc_url($pdf_url) . '" target="_blank" class="ppdb-action-btn ppdb-btn-pdf">';
+        echo '<span class="ppdb-btn-icon">📄</span>';
+        echo '<span class="ppdb-btn-text">' . esc_html__('Download PDF', 'ppdb-form') . '</span>';
+        echo '</a>';
+      }
+
+      echo '</div>';
+      echo '<div class="ppdb-note">';
+      echo '<span class="ppdb-note-icon">💡</span>';
+      echo '<span>' . esc_html__('Simpan bukti pendaftaran ini sebagai tanda bukti resmi pendaftaran Anda.', 'ppdb-form') . '</span>';
+      echo '</div>';
+      echo '</div>';
+      echo '</div>';
+    }
+
+    // Next Steps Card
+    echo '<div class="ppdb-success-card">';
+    echo '<div class="ppdb-card-header">';
+    echo '<h3><span class="ppdb-icon">🚀</span> Langkah Selanjutnya</h3>';
+    echo '</div>';
+    echo '<div class="ppdb-card-content">';
+    echo '<div class="ppdb-step-item">';
+    echo '<div class="ppdb-step-number">1</div>';
+    echo '<div class="ppdb-step-text">';
+    echo '<strong>Simpan bukti pendaftaran</strong><br>';
+    echo '<small>Download dan simpan bukti pendaftaran di tempat aman</small>';
+    echo '</div>';
+    echo '</div>';
+    echo '<div class="ppdb-step-item">';
+    echo '<div class="ppdb-step-number">2</div>';
+    echo '<div class="ppdb-step-text">';
+    echo '<strong>Catat nomor registrasi</strong><br>';
+    echo '<small>Gunakan nomor <strong>' . esc_html($reg_number) . '</strong> untuk keperluan selanjutnya</small>';
+    echo '</div>';
+    echo '</div>';
+    echo '<div class="ppdb-step-item">';
+    echo '<div class="ppdb-step-number">3</div>';
+    echo '<div class="ppdb-step-text">';
+    echo '<strong>Tunggu konfirmasi</strong><br>';
+    echo '<small>Tim kami akan menghubungi Anda untuk informasi lebih lanjut</small>';
+    echo '</div>';
+    echo '</div>';
+    echo '</div>';
+    echo '</div>';
+
+    // Contact Info Card
+    echo '<div class="ppdb-success-card">';
+    echo '<div class="ppdb-card-header">';
+    echo '<h3><span class="ppdb-icon">📞</span> Butuh Bantuan?</h3>';
+    echo '</div>';
+    echo '<div class="ppdb-card-content">';
+    echo '<p>Jika Anda memiliki pertanyaan atau memerlukan bantuan, jangan ragu untuk menghubungi kami:</p>';
+    echo '<div class="ppdb-contact-info">';
+    echo '<span class="ppdb-contact-item">';
+    echo '<strong>Email:</strong> ' . esc_html(get_option('ppdb_form_email_admin', get_option('admin_email')));
+    echo '</span>';
+    echo '</div>';
+    echo '</div>';
+    echo '</div>';
+
+    echo '</div>';
+    return ob_get_clean();
   }
 
   private static function render_single_step_form($form): string
@@ -85,6 +257,7 @@ class PPDB_Form_Frontend
     echo '<form method="post" enctype="multipart/form-data" class="ppdb-grid">';
     wp_nonce_field('ppdb_submit_form_' . $form->id, 'ppdb_form_nonce');
     echo '<input type="hidden" name="ppdb_form_id" value="' . (int) $form->id . '">';
+    echo '<input type="hidden" name="ppdb_current_url" value="' . esc_attr(get_permalink() ?: home_url(sanitize_text_field($_SERVER['REQUEST_URI'] ?? '/'))) . '">';
     // Honeypot field (invisible via CSS)
     echo '<div style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;">'
       . '<label>Website<input type="text" name="website" autocomplete="off" tabindex="-1"></label>'
@@ -159,6 +332,7 @@ class PPDB_Form_Frontend
     echo '<form method="post" enctype="multipart/form-data" class="ppdb-multistep-form">';
     wp_nonce_field('ppdb_submit_form_' . $form->id, 'ppdb_form_nonce');
     echo '<input type="hidden" name="ppdb_form_id" value="' . (int) $form->id . '">';
+    echo '<input type="hidden" name="ppdb_current_url" value="' . esc_attr(get_permalink() ?: home_url(sanitize_text_field($_SERVER['REQUEST_URI'] ?? '/'))) . '">';
     echo '<input type="hidden" name="ppdb_current_step" value="1" />';
     // Honeypot field
     echo '<div style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;">'
@@ -276,7 +450,7 @@ class PPDB_Form_Frontend
         break;
       case 'jurusan':
       case 'jurusan_pilihan_2':
-        $opts = self::get_departments_cached();
+        $opts = self::get_departments_direct();
         $h = self::select($key, $opts, $required_attr, $field_id, $error_id);
         break;
       default:
@@ -344,6 +518,13 @@ class PPDB_Form_Frontend
       return;
     }
 
+    // Load current form early (needed for steps config and validation)
+    global $wpdb;
+    $form = $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . self::get_forms_table() . ' WHERE id = %d AND is_active = 1', $form_id));
+    if (!$form) {
+      return;
+    }
+
     // For multi-step forms, check if this is final submission
     $current_step = isset($_POST['ppdb_current_step']) ? (int) $_POST['ppdb_current_step'] : 1;
     $steps_config = $form->steps_config ? json_decode($form->steps_config, true) : null;
@@ -374,12 +555,6 @@ class PPDB_Form_Frontend
       if (empty($body['success'])) {
         return;
       }
-    }
-
-    global $wpdb;
-    $form = $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . self::get_forms_table() . ' WHERE id = %d AND is_active = 1', $form_id));
-    if (!$form) {
-      return;
     }
 
     $fields_config = $form->fields_json ? json_decode((string) $form->fields_json, true) : [];
@@ -467,10 +642,43 @@ class PPDB_Form_Frontend
     }
     $wpdb->insert(self::get_submissions_table(), ['form_id' => $form_id, 'submission_data' => wp_json_encode($data), 'created_at' => current_time('mysql')], ['%d', '%s', '%s']);
 
+    $submission_id = (int) $wpdb->insert_id;
+
     // Queue email notifications
     PPDB_Form_Notifications::queue_notifications($data, $form);
 
-    $redirect = add_query_arg('ppdb_success', $form_id, wp_get_referer() ?: home_url('/'));
+    // Trigger certificate email sending
+    do_action('ppdb_form_submission_success', $submission_id, $data);
+
+    $behavior = (string) get_option('ppdb_submit_behavior', 'redirect');
+    if ($behavior === 'inline') {
+      // Render success inline by hooking into the_content
+      $success = self::render_success_block($form, $submission_id, $data);
+      // Save inline success to suppress form rendering in shortcode on the same request
+      self::$inline_success = ['form_id' => $form_id, 'html' => $success];
+      add_action('the_content', static function ($c) use ($success) {
+        return $success;
+      });
+      return;
+    }
+    // Default: PRG redirect to same page with signed params
+    $sid = (int) $wpdb->insert_id;
+    $k = wp_hash($sid . '|' . wp_salt('auth'));
+
+    // Use the URL from hidden field if available, otherwise fallback
+    $base = '';
+    if (!empty($_POST['ppdb_current_url'])) {
+      $base = esc_url_raw($_POST['ppdb_current_url']);
+    }
+
+    // Fallback: try referer, then current page, then home
+    if (empty($base)) {
+      $base = wp_get_referer() ?: get_permalink() ?: home_url('/');
+    }
+
+    // Remove transient step params and existing success params
+    $base = remove_query_arg(['ppdb_current_step', '_wpnonce', 'ppdb_thanks', 'sid', 'k'], $base);
+    $redirect = add_query_arg(['ppdb_thanks' => 1, 'sid' => $sid, 'k' => $k], $base);
     wp_safe_redirect($redirect);
     exit;
   }

@@ -42,20 +42,30 @@ final class PPDB_Form_Plugin
     register_activation_hook(__FILE__, ['PPDB_Form_Installer', 'activate']);
     add_action('plugins_loaded', ['PPDB_Form_Installer', 'maybe_upgrade']);
 
-    add_action('admin_menu', ['PPDB_Form_Admin', 'register_menu']);
+    // Initialize admin with early action handling
+    PPDB_Form_Admin::init();
     add_action('admin_menu', ['PPDB_Form_Debug', 'register_menu']);
     add_action('admin_init', ['PPDB_Form_Settings', 'register_settings']);
     add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_assets']);
     add_action('wp_enqueue_scripts', [$this, 'enqueue_front_assets']);
 
+    // Initialize email provider system
+    PPDB_Form_Email_Provider::init();
+    PPDB_Form_Email_Settings::init();
+
     add_shortcode('simpel_pendaftaran', ['PPDB_Form_Frontend', 'render_shortcode']);
+    add_shortcode('ppdb_form', ['PPDB_Form_Frontend', 'render_shortcode']);
     add_action('init', ['PPDB_Form_Frontend', 'handle_submission']);
     add_action('ppdb_send_notifications', ['PPDB_Form_Notifications', 'process_queued_notifications'], 10, 2);
+
+    // Initialize PDF template system
+    PPDB_Form_PDF_Customizer::init();
 
     // Optional: reCAPTCHA site key configured via option, enqueue only on form pages if present
     add_action('wp_enqueue_scripts', static function () {
       $site_key = (string) get_option('ppdb_recaptcha_site_key', '');
-      if ($site_key !== '' && has_shortcode(get_post_field('post_content', get_the_ID() ?: 0), 'simpel_pendaftaran')) {
+      $page_content = get_post_field('post_content', get_the_ID() ?: 0);
+      if ($site_key !== '' && (has_shortcode($page_content, 'simpel_pendaftaran') || has_shortcode($page_content, 'ppdb_form'))) {
         wp_enqueue_script('recaptcha', 'https://www.google.com/recaptcha/api.js', [], null, true);
       }
     });
@@ -80,6 +90,15 @@ final class PPDB_Form_Plugin
     require_once PPDB_FORM_DIR . 'includes/class-ppdb-form-notifications.php';
     require_once PPDB_FORM_DIR . 'includes/class-ppdb-form-submissions-list-table.php';
     require_once PPDB_FORM_DIR . 'includes/class-ppdb-form-debug.php';
+    require_once PPDB_FORM_DIR . 'includes/class-ppdb-form-certificate.php';
+    require_once PPDB_FORM_DIR . 'includes/class-ppdb-form-qr-generator.php';
+    require_once PPDB_FORM_DIR . 'includes/class-ppdb-form-verification.php';
+    require_once PPDB_FORM_DIR . 'includes/class-ppdb-form-pdf-generator.php';
+    require_once PPDB_FORM_DIR . 'includes/class-ppdb-form-email-certificate.php';
+    require_once PPDB_FORM_DIR . 'includes/class-ppdb-form-email-provider.php';
+    require_once PPDB_FORM_DIR . 'includes/class-ppdb-form-email-settings.php';
+    require_once PPDB_FORM_DIR . 'includes/class-ppdb-form-pdf-template.php';
+    require_once PPDB_FORM_DIR . 'includes/class-ppdb-form-pdf-customizer.php';
   }
 
   public function enqueue_admin_assets(string $hook_suffix): void
@@ -88,19 +107,35 @@ final class PPDB_Form_Plugin
       return;
     }
     wp_enqueue_style('ppdb-form-admin', PPDB_FORM_ASSETS . 'css/admin.css', [], self::VERSION);
-    wp_enqueue_script('ppdb-form-admin', PPDB_FORM_ASSETS . 'js/admin.js', ['jquery'], self::VERSION, true);
+    // Ensure jQuery UI Sortable is available for steps builder
+    wp_enqueue_script('jquery-ui-sortable');
+    wp_enqueue_script('ppdb-form-admin', PPDB_FORM_ASSETS . 'js/admin.js', ['jquery', 'jquery-ui-sortable'], self::VERSION, true);
   }
 
   public function enqueue_front_assets(): void
   {
-    // Only enqueue on pages with the shortcode
+    // Enqueue on pages with shortcode or success page
     global $post;
-    if (!is_a($post, 'WP_Post') || !has_shortcode($post->post_content, 'simpel_pendaftaran')) {
+    $should_enqueue = false;
+
+    // Check if page has shortcode
+    if (is_a($post, 'WP_Post') && (has_shortcode($post->post_content, 'simpel_pendaftaran') || has_shortcode($post->post_content, 'ppdb_form'))) {
+      $should_enqueue = true;
+    }
+
+    // Also enqueue when success page parameters are present (for redirected success)
+    if (isset($_GET['ppdb_thanks']) || isset($_GET['sid'])) {
+      $should_enqueue = true;
+    }
+
+    if (!$should_enqueue) {
       return;
     }
 
     wp_enqueue_style('ppdb-form-frontend', PPDB_FORM_ASSETS . 'css/frontend.css', [], self::VERSION);
+    wp_enqueue_style('ppdb-form-success', PPDB_FORM_ASSETS . 'css/success-page.css', [], self::VERSION);
     wp_enqueue_script('ppdb-form-frontend', PPDB_FORM_ASSETS . 'js/frontend.js', ['jquery'], self::VERSION, true);
+    wp_enqueue_script('ppdb-form-success-animations', PPDB_FORM_ASSETS . 'js/success-animations.js', [], self::VERSION, true);
 
     // Localize script for translations
     wp_localize_script('ppdb-form-frontend', 'ppdbForm', [
